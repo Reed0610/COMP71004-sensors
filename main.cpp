@@ -1,4 +1,3 @@
-
 /* Includes */
 #include "mbed.h"
 #include "HTS221Sensor.h"
@@ -15,6 +14,9 @@ static LSM6DSLSensor acc_gyro(&devI2c,0xD4,D4,D5); // high address
 static LIS3MDL magnetometer(&devI2c, 0x3C);
 static DigitalOut shutdown_pin(PC_6);
 static VL53L0X range(&devI2c, &shutdown_pin, PC_7, 0x52);
+static UnbufferedSerial pc(USBTX, USBRX);
+
+char inp_char = 0;
 
 
 // functions to print sensor data
@@ -33,7 +35,6 @@ void print_mag(){
     int32_t axes[3];
     magnetometer.get_m_axes(axes);
     printf("LIS3MDL [mag/mgauss]:    %6ld, %6ld, %6ld\r\n", axes[0], axes[1], axes[2]);
-
 }
 
 void print_accel(){
@@ -58,27 +59,29 @@ void print_distance(){
     }
 }
 
+void pc_interrupt() {
+    if (pc.read(&inp_char, 1)) {
+        // Process the character here if needed
+    }
+}
+
 /* Simple main function */
 int main() {
     uint8_t id;
     float value1, value2;
-
     int32_t axes[3];
 
     hum_temp.init(NULL);
-
     press_temp.init(NULL);
     magnetometer.init(NULL);
     acc_gyro.init(NULL);
-
     range.init_sensor(0x52);
 
     hum_temp.enable();
     press_temp.enable();
-
     acc_gyro.enable_x();
     acc_gyro.enable_g();
-  
+
     printf("\033[2J\033[20A");
     printf ("\r\n--- Starting new run ---\r\n\r\n");
 
@@ -92,15 +95,42 @@ int main() {
     acc_gyro.read_id(&id);
     printf("LSM6DSL accelerometer & gyroscope = 0x%X\r\n", id);
     
-    printf("\n\r--- Reading sensor values ---\n\r"); ;
+    printf("\n\r--- Reading sensor values ---\n\r");
     print_t_rh();
     print_mag();
     print_accel();
     print_gyro();
     print_distance();
     printf("\r\n");
+
+    pc.attach(&pc_interrupt);
     
-    while(1) {
+    while (1) {
+        switch (inp_char) { // Use single quotes for characters in the switch case
+            case 't': // Use single quotes for characters in the case statements
+                print_t_rh();
+                inp_char = 0;
+                break;
+            case 'm': // Use single quotes for characters in the case statements
+                print_mag();
+                inp_char = 0;
+                break;
+            case 'a': // Use single quotes for characters in the case statements
+                print_accel();
+                inp_char = 0;
+                break;
+            case 'g': // Use single quotes for characters in the case statements
+                print_gyro();
+                inp_char = 0;
+                break;
+            case 'd': // Use single quotes for characters in the case statements
+                print_distance();
+                inp_char = 0;
+                break;
+            default:
+                break;
+        }
+
         wait_us(500000);
     }
 }
