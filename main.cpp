@@ -1,4 +1,3 @@
-/* Includes */
 #include "mbed.h"
 #include "HTS221Sensor.h"
 #include "LPS22HBSensor.h"
@@ -6,62 +5,63 @@
 #include "lis3mdl_class.h"
 #include "VL53L0X.h"
 
-// objects for various sensors
-static DevI2C devI2c(PB_11,PB_10);
+// Objects for various sensors
+static DevI2C devI2c(PB_11, PB_10);
 static LPS22HBSensor press_temp(&devI2c);
 static HTS221Sensor hum_temp(&devI2c);
-static LSM6DSLSensor acc_gyro(&devI2c,0xD4,D4,D5); // high address
+static LSM6DSLSensor acc_gyro(&devI2c, 0xD4, D4, D5); // High address
 static LIS3MDL magnetometer(&devI2c, 0x3C);
 static DigitalOut shutdown_pin(PC_6);
 static VL53L0X range(&devI2c, &shutdown_pin, PC_7, 0x52);
 static UnbufferedSerial pc(USBTX, USBRX);
 
 char inp_char = 0;
+void pc_interrupt();
 
 
-// functions to print sensor data
-void print_t_rh(){
+// Flags for sensor selection
+bool print_t_rh_flag = false;
+bool print_mag_flag = false;
+bool print_accel_flag = false;
+bool print_gyro_flag = false;
+bool print_distance_flag = false;
+
+// Functions to print sensor data
+void print_t_rh() {
     float value1, value2;
     hum_temp.get_temperature(&value1);
     hum_temp.get_humidity(&value2);
-
-    value1=value2=0;    
+    value1 = value2 = 0;
     press_temp.get_temperature(&value1);
     press_temp.get_pressure(&value2);
     printf("LPS22HB: [temp] %.2f C, [press] %.2f mbar\r\n", value1, value2);
 }
 
-void print_mag(){
+void print_mag() {
     int32_t axes[3];
     magnetometer.get_m_axes(axes);
     printf("LIS3MDL [mag/mgauss]:    %6ld, %6ld, %6ld\r\n", axes[0], axes[1], axes[2]);
 }
 
-void print_accel(){
+void print_accel() {
     int32_t axes[3];
     acc_gyro.get_x_axes(axes);
     printf("LSM6DSL [acc/mg]:        %6ld, %6ld, %6ld\r\n", axes[0], axes[1], axes[2]);
 }
 
-void print_gyro(){
+void print_gyro() {
     int32_t axes[3];
     acc_gyro.get_g_axes(axes);
     printf("LSM6DSL [gyro/mdps]:     %6ld, %6ld, %6ld\r\n", axes[0], axes[1], axes[2]);
 }
 
-void print_distance(){
+void print_distance() {
     uint32_t distance;
     int status = range.get_distance(&distance);
     if (status == VL53L0X_ERROR_NONE) {
         printf("VL53L0X [mm]:            %6ld\r\n", distance);
     } else {
         printf("VL53L0X [mm]:                --\r\n");
-    }
-}
-
-void pc_interrupt() {
-    if (pc.read(&inp_char, 1)) {
-        // Process the character here if needed
     }
 }
 
@@ -83,7 +83,7 @@ int main() {
     acc_gyro.enable_g();
 
     printf("\033[2J\033[20A");
-    printf ("\r\n--- Starting new run ---\r\n\r\n");
+    printf("\r\n--- Starting new run ---\r\n\r\n");
 
     hum_temp.read_id(&id);
     printf("HTS221  humidity & temperature    = 0x%X\r\n", id);
@@ -94,43 +94,57 @@ int main() {
     printf("LIS3MDL magnetometer              = 0x%X\r\n", id);
     acc_gyro.read_id(&id);
     printf("LSM6DSL accelerometer & gyroscope = 0x%X\r\n", id);
-    
+
     printf("\n\r--- Reading sensor values ---\n\r");
-    print_t_rh();
-    print_mag();
-    print_accel();
-    print_gyro();
-    print_distance();
-    printf("\r\n");
 
     pc.attach(&pc_interrupt);
-    
+
     while (1) {
-        switch (inp_char) { // Use single quotes for characters in the switch case
-            case 't': // Use single quotes for characters in the case statements
-                print_t_rh();
-                inp_char = 0;
+        if (print_t_rh_flag) {
+            print_t_rh();
+            print_t_rh_flag = false;
+        }
+        if (print_mag_flag) {
+            print_mag();
+            print_mag_flag = false;
+        }
+        if (print_accel_flag) {
+            print_accel();
+            print_accel_flag = false;
+        }
+        if (print_gyro_flag) {
+            print_gyro();
+            print_gyro_flag = false;
+        }
+        if (print_distance_flag) {
+            print_distance();
+            print_distance_flag = false;
+        }
+
+        wait_us(500000);
+    }
+}
+
+void pc_interrupt() {
+    if (pc.read(&inp_char, 1)) {
+        switch (inp_char) {
+            case 't':
+                print_t_rh_flag = true;
                 break;
-            case 'm': // Use single quotes for characters in the case statements
-                print_mag();
-                inp_char = 0;
+            case 'm':
+                print_mag_flag = true;
                 break;
-            case 'a': // Use single quotes for characters in the case statements
-                print_accel();
-                inp_char = 0;
+            case 'a':
+                print_accel_flag = true;
                 break;
-            case 'g': // Use single quotes for characters in the case statements
-                print_gyro();
-                inp_char = 0;
+            case 'g':
+                print_gyro_flag = true;
                 break;
-            case 'd': // Use single quotes for characters in the case statements
-                print_distance();
-                inp_char = 0;
+            case 'd':
+                print_distance_flag = true;
                 break;
             default:
                 break;
         }
-
-        wait_us(500000);
     }
 }
